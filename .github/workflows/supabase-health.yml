@@ -1,0 +1,55 @@
+
+name: Supabase Storage Health Check
+
+on:
+  schedule:
+    # Run every 6 hours (UTC)
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-health-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Check Supabase Storage image
+        shell: bash
+        env:
+          IMAGE_URL: ${{ secrets.SUPABASE_IMAGE_URL }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${IMAGE_URL:-}" ]]; then
+            echo "ERROR: SUPABASE_IMAGE_URL is missing"
+            exit 1
+          fi
+
+          echo "Checking Supabase Storage..."
+          echo "Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+          HTTP_CODE=$(curl \
+            --silent \
+            --show-error \
+            --location \
+            --head \
+            --output /dev/null \
+            --write-out "%{http_code}" \
+            --connect-timeout 10 \
+            --max-time 30 \
+            "$IMAGE_URL") || {
+              echo "FAILED: Could not reach the image endpoint"
+              exit 1
+            }
+
+          echo "HTTP status: $HTTP_CODE"
+
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "FAILED: Storage image check did not return HTTP 200"
+            exit 1
+          fi
+
+          echo "SUCCESS: Supabase Storage image is accessible"
